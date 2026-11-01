@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { Toaster } from "@/components/ui/sonner"
 import { SlotwiseProvider } from "@/store/SlotwiseContext"
 import AppLayout from "@/components/layout/AppLayout"
 import Timetable from "@/pages/Timetable"
@@ -21,6 +22,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </SlotwiseProvider>
   )
 }
