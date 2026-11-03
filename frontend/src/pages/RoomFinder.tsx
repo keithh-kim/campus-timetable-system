@@ -2,8 +2,16 @@ import { useMemo, useState } from "react"
 import RoomCard from "@/components/rooms/RoomCard"
 import RoomFilters, { type RoomFilterState } from "@/components/rooms/RoomFilters"
 import { findFreeRooms } from "@/lib/clash"
-import { ROOMS, demoWeekStart } from "@/lib/mockData"
-import { nowTime, parseDate, toMinutes, today, weekdayIndex } from "@/lib/time"
+import { demoWeekStart } from "@/lib/mockData"
+import {
+  DAY_END_HOUR,
+  DAY_START_HOUR,
+  nowTime,
+  parseDate,
+  toMinutes,
+  today,
+  weekdayIndex,
+} from "@/lib/time"
 import { useSlotwise } from "@/store/SlotwiseContext"
 
 // Start on "right now" during teaching hours; otherwise pick a sensible default
@@ -15,11 +23,11 @@ function defaultDate() {
 function defaultTime() {
   const now = nowTime()
   const minutes = toMinutes(now)
-  return minutes >= 8 * 60 && minutes < 18 * 60 ? now : "10:00"
+  return minutes >= DAY_START_HOUR * 60 && minutes < DAY_END_HOUR * 60 ? now : "10:00"
 }
 
 export default function RoomFinder() {
-  const { sessions } = useSlotwise()
+  const { sessions, campus } = useSlotwise()
 
   const [filters, setFilters] = useState<RoomFilterState>(() => ({
     date: defaultDate(),
@@ -30,11 +38,11 @@ export default function RoomFinder() {
 
   const free = useMemo(() => {
     if (!filters.date || !filters.time) return []
-    return findFreeRooms(sessions, filters.date, filters.time, {
+    return findFreeRooms(sessions, filters.date, filters.time, campus, {
       phaseId: filters.phase === "all" ? undefined : filters.phase,
       minCapacity: Number(filters.minCapacity) || undefined,
     })
-  }, [sessions, filters])
+  }, [sessions, campus, filters])
 
   const dateLabel = filters.date
     ? parseDate(filters.date).toLocaleDateString("en-GB", {
@@ -58,7 +66,7 @@ export default function RoomFinder() {
       {filters.date && filters.time && (
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">
-            {free.length} of {ROOMS.length} rooms
+            {free.length} of {campus.rooms.length} rooms
           </span>{" "}
           free at {filters.time} on {dateLabel}
         </p>

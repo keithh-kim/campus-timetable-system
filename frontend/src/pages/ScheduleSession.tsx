@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -14,34 +14,50 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import Notice from "@/components/layout/Notice"
 import CheckResults from "@/components/schedule/CheckResults"
 import SessionForm from "@/components/schedule/SessionForm"
-import { checkSession } from "@/lib/clash"
+import { checkSessions } from "@/lib/clash"
 import { makeDemoDrafts } from "@/lib/mockData"
-import type { Session, SessionDraft } from "@/lib/types"
+import { describeChanges } from "@/lib/notifications"
+import { applyFields, occurrenceDates, seriesTargets, type EditScope } from "@/lib/series"
+import type { Session, SessionDraft, SessionFields } from "@/lib/types"
 import { useSlotwise } from "@/store/SlotwiseContext"
 
 const emptyDraft = (): SessionDraft => ({
   course: "",
   lecturerId: "",
-  cohortId: "",
+  cohortIds: [],
   roomId: "",
   date: "",
   start: "",
   end: "",
 })
 
-function Notice({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="mx-auto max-w-md space-y-3 pt-12 text-center">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-sm text-muted-foreground">{text}</p>
-      <Button asChild variant="outline">
-        <Link to="/timetable">Back to timetable</Link>
-      </Button>
-    </div>
-  )
-}
+const toFields = (draft: SessionDraft): SessionFields => ({
+  course: draft.course.trim(),
+  lecturerId: draft.lecturerId,
+  cohortIds: draft.cohortIds,
+  roomId: draft.roomId,
+  date: draft.date,
+  start: draft.start,
+  end: draft.end,
+})
+
+const repeatOptions = [
+  { value: "1", label: "Does not repeat" },
+  { value: "4", label: "Weekly for 4 weeks" },
+  { value: "8", label: "Weekly for 8 weeks" },
+  { value: "12", label: "Weekly for 12 weeks" },
+]
 
 export default function ScheduleSession() {
   const { id } = useParams()
@@ -67,13 +83,28 @@ export default function ScheduleSession() {
 
 function Editor({ existing }: { existing?: Session }) {
   const navigate = useNavigate()
-  const { sessions, addSession, updateSession, deleteSession } = useSlotwise()
+  const { campus, sessions, addSessions, updateSessions, deleteSessions } = useSlotwise()
 
   const [draft, setDraft] = useState<SessionDraft>(() => (existing ? { ...existing } : emptyDraft()))
+  const [repeatWeeks, setRepeatWeeks] = useState("1")
+  const [scope, setScope] = useState<EditScope>("one")
   const patch = (p: Partial<SessionDraft>) => setDraft((d) => ({ ...d, ...p }))
 
+  const loadDemo = (demo: SessionDraft) => {
+    setDraft(demo)
+    setRepeatWeeks("1")
+  }
+
+  const laterCount = existing ? seriesTargets(sessions, existing, "following").length - 1 : 0
+
   // Recomputed on every change; cheap with this much data
-  const result = useMemo(() => checkSession(draft, sessions), [draft, sessions])
+  const result = useMemo(() => {
+    const fields = toFields(draft)
+    const drafts: SessionDraft[] = existing
+      ? seriesTargets(sessions, existing, scope).map((s) => applyFields(s, existing, fields))
+      : occurrenceDates(fields.date, Number(repeatWeeks)).map((date) => ({ ...fields, date }))
+    return checkSessions(drafts, sessions, campus)
+  }, [draft, existing, scope, repeatWeeks, sessions, campus])
 
   const hasCourse = draft.course.trim().length > 0
   const canSave = hasCourse && result.complete && result.errors.length === 0
@@ -88,33 +119,35 @@ function Editor({ existing }: { existing?: Session }) {
 
   const handleSave = () => {
     if (!canSave) return
-    const fields = {
-      course: draft.course.trim(),
-      lecturerId: draft.lecturerId,
-      cohortId: draft.cohortId,
-      roomId: draft.roomId,
-      date: draft.date,
-      start: draft.start,
-      end: draft.end,
-    }
+    const fields = toFields(draft)
     if (existing) {
-      updateSession({ ...fields, id: existing.id })
-      toast.success("Session updated", { description: "Affected users have been notified." })
+      const changed = describeChanges(existing, applyFields(existing, existing, fields), campus.rooms)
+      updateSessions(existing.id, fields, scope)
+      toast.success("Session updated", {
+        description:
+          changed.lines.length > 0
+            ? "Affected users have been notified."
+            : "Nothing changed, so nobody was notified.",
+      })
     } else {
-      addSession(fields)
-      toast.success("Session scheduled", { description: `${fields.course} · ${fields.date}` })
+      const weeks = Number(repeatWeeks)
+      addSessions(fields, weeks)
+      toast.success("Session scheduled", {
+        description: `${fields.course} · ${fields.date}${weeks > 1 ? ` · weekly for ${weeks} weeks` : ""}`,
+      })
     }
     navigate("/timetable")
   }
 
   const handleDelete = () => {
     if (!existing) return
-    deleteSession(existing.id)
+    deleteSessions(existing.id, scope)
     toast.success("Session cancelled", { description: "Affected users have been notified." })
     navigate("/timetable")
   }
 
   const demos = makeDemoDrafts()
+  const cancellingLater = scope === "following" && laterCount > 0
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -131,13 +164,16 @@ function Editor({ existing }: { existing?: Session }) {
         {!existing && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Load demo:</span>
-            <Button variant="outline" size="sm" onClick={() => setDraft(demos.roomClash)}>
+            <Button variant="outline" size="sm" onClick={() => loadDemo(demos.roomClash)}>
               Room clash
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setDraft(demos.travelWarning)}>
+            <Button variant="outline" size="sm" onClick={() => loadDemo(demos.travelWarning)}>
               Travel warning
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setDraft(demos.allClear)}>
+            <Button variant="outline" size="sm" onClick={() => loadDemo(demos.sharedLecture)}>
+              Shared lecture
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => loadDemo(demos.allClear)}>
               All clear
             </Button>
           </div>
@@ -148,6 +184,41 @@ function Editor({ existing }: { existing?: Session }) {
         <Card>
           <CardContent className="space-y-6">
             <SessionForm draft={draft} onChange={patch} />
+
+            {!existing && (
+              <div className="space-y-2">
+                <Label htmlFor="repeat">Repeat</Label>
+                <Select value={repeatWeeks} onValueChange={setRepeatWeeks}>
+                  <SelectTrigger id="repeat" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {repeatOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {laterCount > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="scope">This session repeats weekly</Label>
+                <Select value={scope} onValueChange={(v) => setScope(v as EditScope)}>
+                  <SelectTrigger id="scope" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="one">Change only this session</SelectItem>
+                    <SelectItem value="following">
+                      Change this and {laterCount} later session{laterCount === 1 ? "" : "s"}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <div>
@@ -160,10 +231,15 @@ function Editor({ existing }: { existing?: Session }) {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel this session?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          {cancellingLater ? "Cancel this and later sessions?" : "Cancel this session?"}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          {existing.course} will be removed from the timetable and affected
-                          users will be notified.
+                          {existing.course}
+                          {cancellingLater
+                            ? ` and ${laterCount} later session${laterCount === 1 ? "" : "s"} in the series`
+                            : ""}{" "}
+                          will be removed from the timetable and affected users will be notified.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

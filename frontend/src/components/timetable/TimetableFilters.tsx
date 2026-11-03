@@ -8,18 +8,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { PhaseId } from "@/lib/types"
-import { BUILDINGS, LECTURERS, PHASES, demoWeekStart } from "@/lib/mockData"
+import { BUILDINGS, COHORTS, LECTURERS, PHASES, demoWeekStart } from "@/lib/mockData"
 import { addDays, parseDate } from "@/lib/time"
 
 export type TimetableFilterState = {
   phase: "all" | PhaseId
   building: string
   lecturer: string
+  cohort: string
 }
 
 interface Props {
   filters: TimetableFilterState
   onFiltersChange: (filters: TimetableFilterState) => void
+  /** Students and lecturers see their own timetable, so these filters don't apply to them */
+  showPeopleFilters: boolean
   weekStart: string
   onWeekChange: (weekStart: string) => void
 }
@@ -30,6 +33,7 @@ const fmt = (date: string) =>
 export default function TimetableFilters({
   filters,
   onFiltersChange,
+  showPeopleFilters,
   weekStart,
   onWeekChange,
 }: Props) {
@@ -76,22 +80,43 @@ export default function TimetableFilters({
         </SelectContent>
       </Select>
 
-      <Select
-        value={filters.lecturer}
-        onValueChange={(v) => onFiltersChange({ ...filters, lecturer: v })}
-      >
-        <SelectTrigger className="w-44" aria-label="Filter by lecturer">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All lecturers</SelectItem>
-          {LECTURERS.map((l) => (
-            <SelectItem key={l.id} value={l.id}>
-              {l.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {showPeopleFilters && (
+        <>
+          <Select
+            value={filters.lecturer}
+            onValueChange={(v) => onFiltersChange({ ...filters, lecturer: v })}
+          >
+            <SelectTrigger className="w-44" aria-label="Filter by lecturer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All lecturers</SelectItem>
+              {LECTURERS.map((l) => (
+                <SelectItem key={l.id} value={l.id}>
+                  {l.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filters.cohort}
+            onValueChange={(v) => onFiltersChange({ ...filters, cohort: v })}
+          >
+            <SelectTrigger className="w-44" aria-label="Filter by cohort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All cohorts</SelectItem>
+              {COHORTS.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      )}
 
       <div className="flex items-center gap-1">
         <Button

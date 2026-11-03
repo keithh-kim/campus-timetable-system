@@ -5,6 +5,7 @@ import AppLayout from "@/components/layout/AppLayout"
 import Timetable from "@/pages/Timetable"
 import ScheduleSession from "@/pages/ScheduleSession"
 import RoomFinder from "@/pages/RoomFinder"
+import Venues from "@/pages/Venues"
 import Notifications from "@/pages/Notifications"
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/schedule" element={<ScheduleSession />} />
             <Route path="/schedule/:id" element={<ScheduleSession />} />
             <Route path="/rooms" element={<RoomFinder />} />
+            <Route path="/venues" element={<Venues />} />
             <Route path="/notifications" element={<Notifications />} />
           </Route>
         </Routes>

@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react"
 import type { Session } from "@/lib/types"
-import { BUILDINGS, LECTURERS, ROOMS } from "@/lib/mockData"
+import { BUILDINGS, COHORTS, LECTURERS } from "@/lib/mockData"
 import { formatRange } from "@/lib/time"
 import { cn } from "@/lib/utils"
+import { useSlotwise } from "@/store/SlotwiseContext"
 
 // Colour = phase, so a glance at a day shows who has to cross the campus.
 const phaseStyles = {
@@ -18,9 +19,13 @@ interface Props {
 }
 
 export default function SessionBlock({ session, style, compact, onClick }: Props) {
-  const room = ROOMS.find((r) => r.id === session.roomId)
+  const { campus } = useSlotwise()
+  const room = campus.rooms.find((r) => r.id === session.roomId)
   const phaseId = BUILDINGS.find((b) => b.id === room?.buildingId)?.phaseId ?? "phase1"
   const lecturer = LECTURERS.find((l) => l.id === session.lecturerId)
+  const cohorts = COHORTS.filter((c) => session.cohortIds.includes(c.id))
+    .map((c) => c.name)
+    .join(" + ")
   const range = formatRange(session.start, session.end)
 
   return (
@@ -28,7 +33,7 @@ export default function SessionBlock({ session, style, compact, onClick }: Props
       type="button"
       onClick={onClick}
       style={style}
-      title={`${session.course} · ${room?.name} · ${lecturer?.name} · ${range}`}
+      title={`${session.course} · ${room?.name} · ${lecturer?.name} · ${cohorts} · ${range}`}
       className={cn(
         "absolute flex flex-col items-stretch justify-start overflow-hidden rounded-md border border-l-4 px-2 py-1 text-left text-xs leading-tight",
         phaseStyles[phaseId],

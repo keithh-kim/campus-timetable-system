@@ -2,23 +2,65 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react"
-import type { AppNotification, Role, Session } from "../lib/types"
-import { ROOMS, makeSeedSessions } from "../lib/mockData"
-import { formatRange } from "../lib/time"
+import type {
+  AppNotification,
+  Role,
+  Room,
+  RoomDraft,
+  Session,
+  SessionFields,
+  Viewer,
+} from "../lib/types"
+import type { Campus } from "../lib/clash"
+import {
+  BUILDINGS,
+  COHORTS,
+  LECTURERS,
+  ROOMS,
+  demoWeekStart,
+  makeSeedSessions,
+  rollSessions,
+} from "../lib/mockData"
+import {
+  cancelledNotification,
+  isForViewer,
+  newSessionNotification,
+  updatedNotification,
+  viewerKey,
+} from "../lib/notifications"
+import { applyFields, occurrenceDates, seriesTargets, type EditScope } from "../lib/series"
+import { newId } from "../lib/utils"
 
-const STORAGE_KEY = "slotwise:v1"
+// v2: sessions can have several cohorts, so older saved data no longer fits
+const STORAGE_KEY = "slotwise:v2"
 
 interface State {
-  role: Role
+  viewer: Viewer
+  rooms: Room[]
   sessions: Session[]
   notifications: AppNotification[]
+  /** The week the sessions were last lined up with (see rollSessions) */
+  seedWeek: string
+}
+
+const defaultViewer: Viewer = {
+  role: "officer",
+  lecturerId: LECTURERS[0].id,
+  cohortId: COHORTS[0].id,
 }
 
 function seed(): State {
-  return { role: "officer", sessions: makeSeedSessions(), notifications: [] }
+  return {
+    viewer: defaultViewer,
+    rooms: ROOMS,
+    sessions: makeSeedSessions(),
+    notifications: [],
+    seedWeek: demoWeekStart(),
+  }
 }
 
 // Read saved data; if it's missing or corrupt, fall back to the seed data.
@@ -27,11 +69,14 @@ function load(): State {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const p = JSON.parse(raw)
-      if (Array.isArray(p.sessions) && Array.isArray(p.notifications)) {
+      if (Array.isArray(p.sessions) && Array.isArray(p.notifications) && Array.isArray(p.rooms)) {
+        const week = demoWeekStart()
         return {
-          role: p.role ?? "officer",
-          sessions: p.sessions,
+          viewer: { ...defaultViewer, ...p.viewer },
+          rooms: p.rooms,
+          sessions: rollSessions(p.sessions, p.seedWeek ?? week, week),
           notifications: p.notifications,
+          seedWeek: week,
         }
       }
     }
@@ -44,33 +89,25 @@ function load(): State {
 interface Store {
   role: Role
   setRole: (role: Role) => void
+  viewer: Viewer
+  setViewer: (patch: Partial<Viewer>) => void
+  campus: Campus
   sessions: Session[]
-  addSession: (draft: Omit<Session, "id">) => void
-  updateSession: (session: Session) => void
-  deleteSession: (id: string) => void
+  addSessions: (fields: SessionFields, weeks: number) => void
+  updateSessions: (id: string, fields: SessionFields, scope: EditScope) => void
+  deleteSessions: (id: string, scope: EditScope) => void
+  addRoom: (draft: RoomDraft) => void
+  updateRoom: (room: Room) => void
+  deleteRoom: (id: string) => void
+  /** Only the notifications that affect the current viewer */
   notifications: AppNotification[]
+  isUnread: (n: AppNotification) => boolean
   unreadCount: number
   markAllRead: () => void
   resetDemo: () => void
 }
 
 const SlotwiseContext = createContext<Store | null>(null)
-
-const roomName = (id: string) => ROOMS.find((r) => r.id === id)?.name ?? id
-const where = (s: Session) =>
-  `${roomName(s.roomId)}, ${s.date} ${formatRange(s.start, s.end)}`
-const newId = (prefix: string) =>
-  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-
-function notification(message: string, sessionId: string): AppNotification {
-  return {
-    id: newId("n"),
-    message,
-    createdAt: new Date().toISOString(),
-    read: false,
-    sessionId,
-  }
-}
 
 export function SlotwiseProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(load)
@@ -84,73 +121,94 @@ export function SlotwiseProvider({ children }: { children: ReactNode }) {
     }
   }, [state])
 
-  const addSession = (draft: Omit<Session, "id">) => {
-    const session: Session = { ...draft, id: newId("s") }
+  const campus = useMemo<Campus>(
+    () => ({ rooms: state.rooms, buildings: BUILDINGS, cohorts: COHORTS }),
+    [state.rooms]
+  )
+
+  const addSessions = (fields: SessionFields, weeks: number) => {
+    const seriesId = weeks > 1 ? newId("series") : undefined
+    const created: Session[] = occurrenceDates(fields.date, weeks).map((date) => ({
+      ...fields,
+      date,
+      id: newId("s"),
+      ...(seriesId && { seriesId }),
+    }))
     setState((prev) => ({
       ...prev,
-      sessions: [...prev.sessions, session],
-      notifications: [
-        notification(`New session: ${session.course} · ${where(session)}`, session.id),
-        ...prev.notifications,
-      ],
+      sessions: [...prev.sessions, ...created],
+      notifications: [newSessionNotification(created[0], weeks, prev.rooms), ...prev.notifications],
     }))
   }
 
-  // Simulated notification service: a changed room or time creates a notification
-  const updateSession = (updated: Session) => {
+  const updateSessions = (id: string, fields: SessionFields, scope: EditScope) => {
     setState((prev) => {
-      const old = prev.sessions.find((s) => s.id === updated.id)
-      const moved =
-        old &&
-        (old.roomId !== updated.roomId ||
-          old.date !== updated.date ||
-          old.start !== updated.start ||
-          old.end !== updated.end)
+      const old = prev.sessions.find((s) => s.id === id)
+      if (!old) return prev
+
+      const targets = new Set(seriesTargets(prev.sessions, old, scope).map((s) => s.id))
+      const notice = updatedNotification(old, applyFields(old, old, fields), targets.size - 1, prev.rooms)
       return {
         ...prev,
-        sessions: prev.sessions.map((s) => (s.id === updated.id ? updated : s)),
-        notifications:
-          moved && old
-            ? [
-                notification(
-                  `${updated.course} moved: ${where(old)} → ${where(updated)}`,
-                  updated.id
-                ),
-                ...prev.notifications,
-              ]
-            : prev.notifications,
+        sessions: prev.sessions.map((s) => (targets.has(s.id) ? applyFields(s, old, fields) : s)),
+        notifications: notice ? [notice, ...prev.notifications] : prev.notifications,
       }
     })
   }
 
-  const deleteSession = (id: string) => {
+  const deleteSessions = (id: string, scope: EditScope) => {
     setState((prev) => {
       const gone = prev.sessions.find((s) => s.id === id)
+      if (!gone) return prev
+
+      const targets = new Set(seriesTargets(prev.sessions, gone, scope).map((s) => s.id))
       return {
         ...prev,
-        sessions: prev.sessions.filter((s) => s.id !== id),
-        notifications: gone
-          ? [notification(`Cancelled: ${gone.course} · ${where(gone)}`, id), ...prev.notifications]
-          : prev.notifications,
+        sessions: prev.sessions.filter((s) => !targets.has(s.id)),
+        notifications: [
+          cancelledNotification(gone, targets.size - 1, prev.rooms),
+          ...prev.notifications,
+        ],
       }
     })
   }
 
+  const key = viewerKey(state.viewer)
+  const visible = state.notifications.filter((n) => isForViewer(n, state.viewer))
+  const isUnread = (n: AppNotification) => !n.readBy.includes(key)
+
   const value: Store = {
-    role: state.role,
-    setRole: (role) => setState((prev) => ({ ...prev, role })),
+    role: state.viewer.role,
+    setRole: (role) => setState((prev) => ({ ...prev, viewer: { ...prev.viewer, role } })),
+    viewer: state.viewer,
+    setViewer: (patch) => setState((prev) => ({ ...prev, viewer: { ...prev.viewer, ...patch } })),
+    campus,
     sessions: state.sessions,
-    addSession,
-    updateSession,
-    deleteSession,
-    notifications: state.notifications,
-    unreadCount: state.notifications.filter((n) => !n.read).length,
+    addSessions,
+    updateSessions,
+    deleteSessions,
+    addRoom: (draft) =>
+      setState((prev) => ({ ...prev, rooms: [...prev.rooms, { ...draft, id: newId("r") }] })),
+    updateRoom: (room) =>
+      setState((prev) => ({
+        ...prev,
+        rooms: prev.rooms.map((r) => (r.id === room.id ? room : r)),
+      })),
+    deleteRoom: (id) =>
+      setState((prev) => ({ ...prev, rooms: prev.rooms.filter((r) => r.id !== id) })),
+    notifications: visible,
+    isUnread,
+    unreadCount: visible.filter(isUnread).length,
     markAllRead: () =>
       setState((prev) => ({
         ...prev,
-        notifications: prev.notifications.map((n) => ({ ...n, read: true })),
+        notifications: prev.notifications.map((n) =>
+          isForViewer(n, prev.viewer) && !n.readBy.includes(key)
+            ? { ...n, readBy: [...n.readBy, key] }
+            : n
+        ),
       })),
-    resetDemo: () => setState((prev) => ({ ...seed(), role: prev.role })),
+    resetDemo: () => setState((prev) => ({ ...seed(), viewer: prev.viewer })),
   }
 
   return <SlotwiseContext.Provider value={value}>{children}</SlotwiseContext.Provider>

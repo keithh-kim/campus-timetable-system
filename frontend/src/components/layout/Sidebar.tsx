@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { Bell, CalendarDays, CalendarPlus, DoorOpen } from "lucide-react"
+import { Bell, Building2, CalendarDays, CalendarPlus, DoorOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSlotwise } from "@/store/SlotwiseContext"
 
@@ -7,6 +7,7 @@ const links = [
   { to: "/timetable", label: "Timetable", icon: CalendarDays, officerOnly: false },
   { to: "/schedule", label: "Schedule Session", icon: CalendarPlus, officerOnly: true },
   { to: "/rooms", label: "Room Finder", icon: DoorOpen, officerOnly: false },
+  { to: "/venues", label: "Venues", icon: Building2, officerOnly: true },
   { to: "/notifications", label: "Notifications", icon: Bell, officerOnly: false },
 ]
 

@@ -6,22 +6,27 @@ import TimetableFilters, {
   type TimetableFilterState,
 } from "@/components/timetable/TimetableFilters"
 import WeekGrid from "@/components/timetable/WeekGrid"
-import { BUILDINGS, ROOMS, demoWeekStart } from "@/lib/mockData"
+import { BUILDINGS, COHORTS, LECTURERS, demoWeekStart } from "@/lib/mockData"
 import { addDays } from "@/lib/time"
 import { useSlotwise } from "@/store/SlotwiseContext"
 
 export default function Timetable() {
-  const { sessions, role, resetDemo } = useSlotwise()
+  const { sessions, role, viewer, campus, resetDemo } = useSlotwise()
   const navigate = useNavigate()
 
   const [filters, setFilters] = useState<TimetableFilterState>({
     phase: "all",
     building: "all",
     lecturer: "all",
+    cohort: "all",
   })
   const [weekStart, setWeekStart] = useState(demoWeekStart)
   const weekEnd = addDays(weekStart, 4)
   const isOfficer = role === "officer"
+
+  // Students and lecturers see their own timetable; officers can look at anyone's
+  const lecturerId = role === "lecturer" ? viewer.lecturerId : isOfficer ? filters.lecturer : "all"
+  const cohortId = role === "student" ? viewer.cohortId : isOfficer ? filters.cohort : "all"
 
   const visible = useMemo(
     () =>
@@ -29,16 +34,24 @@ export default function Timetable() {
         // ISO date strings compare correctly as plain text
         if (s.date < weekStart || s.date > weekEnd) return false
 
-        const room = ROOMS.find((r) => r.id === s.roomId)
+        const room = campus.rooms.find((r) => r.id === s.roomId)
         const building = BUILDINGS.find((b) => b.id === room?.buildingId)
 
         if (filters.phase !== "all" && building?.phaseId !== filters.phase) return false
         if (filters.building !== "all" && building?.id !== filters.building) return false
-        if (filters.lecturer !== "all" && s.lecturerId !== filters.lecturer) return false
+        if (lecturerId !== "all" && s.lecturerId !== lecturerId) return false
+        if (cohortId !== "all" && !s.cohortIds.includes(cohortId)) return false
         return true
       }),
-    [sessions, filters, weekStart, weekEnd]
+    [sessions, campus, filters, lecturerId, cohortId, weekStart, weekEnd]
   )
+
+  const owner =
+    role === "student"
+      ? COHORTS.find((c) => c.id === viewer.cohortId)?.name
+      : role === "lecturer"
+        ? LECTURERS.find((l) => l.id === viewer.lecturerId)?.name
+        : undefined
 
   return (
     <div className="space-y-4">
@@ -46,6 +59,7 @@ export default function Timetable() {
         <TimetableFilters
           filters={filters}
           onFiltersChange={setFilters}
+          showPeopleFilters={isOfficer}
           weekStart={weekStart}
           onWeekChange={setWeekStart}
         />
@@ -75,6 +89,7 @@ export default function Timetable() {
           </span>
           <span>
             {visible.length} session{visible.length === 1 ? "" : "s"} this week
+            {owner ? ` for ${owner}` : ""}
           </span>
         </div>
         <Button variant="ghost" size="sm" onClick={resetDemo}>

@@ -1,10 +1,15 @@
 import type { Session } from "@/lib/types"
-import { addDays, parseDate, toMinutes, today } from "@/lib/time"
+import {
+  DAY_END_HOUR as END_HOUR,
+  DAY_START_HOUR as START_HOUR,
+  addDays,
+  parseDate,
+  toMinutes,
+  today,
+} from "@/lib/time"
 import { cn } from "@/lib/utils"
 import SessionBlock from "./SessionBlock"
 
-const START_HOUR = 8
-const END_HOUR = 18
 const HOUR_PX = 64
 const PX_PER_MIN = HOUR_PX / 60
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"]
