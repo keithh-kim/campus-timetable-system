@@ -1,75 +1,32 @@
-# React + TypeScript + Vite
+# Slotwise frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The Slotwise app. There is no backend yet, so everything runs in the browser. See the [main README](../README.md) for what the project is and how to try it.
 
-Currently, two official plugins are available:
+## Commands
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` | Runs the app locally |
+| `npm test` | Runs the unit tests |
+| `npm run lint` | Checks the code with ESLint |
+| `npm run build` | Type-checks and builds for production |
 
-## React Compiler
+## Where things live
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Path | Contents |
+|------|----------|
+| `src/lib/clash.ts` | Clash, capacity, teaching-hours, and travel rules, plus the room finder |
+| `src/lib/series.ts` | Weekly repeats |
+| `src/lib/notifications.ts` | Notification text, and who each one is shown to |
+| `src/lib/venues.ts` | Rules for adding, editing, and deleting rooms |
+| `src/lib/mockData.ts` | Placeholder campus data, demo sessions, and the demo buttons |
+| `src/store/SlotwiseContext.tsx` | Shared app state, saved to `localStorage` |
+| `src/pages/` | One file per screen |
+| `src/components/ui/` | shadcn components, generated rather than hand-written |
 
-## Expanding the ESLint configuration
+## Good to know
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+- **The rules have no React in them.** Everything in `src/lib` is plain functions, so it can be tested directly and moved to a backend later.
+- **A weekly repeat is stored as one session per week**, linked by a shared `seriesId`. The clash rules, grid, and room finder only ever deal with single dated sessions.
+- **Demo data stays current.** When the app loads in a later week, saved sessions move forward by the same number of weeks. This is for demos and should go when real data arrives (`rollSessions` in `src/lib/mockData.ts`).
+- **TypeScript is pinned to 6.0.** `typescript-eslint` doesn't support TypeScript 7 yet, and `npm run lint` crashes with it.

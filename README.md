@@ -5,6 +5,8 @@
 ![status](https://img.shields.io/badge/status-in%20development-yellow)
 ![methodology](https://img.shields.io/badge/methodology-Agile%20Scrum-blue)
 
+> **Current version: frontend-only prototype.** There is no backend yet. Data is saved in your browser, role switching stands in for logins, and notifications are shown inside the app rather than sent by email or SMS. Room names, capacities, lecturers and cohorts are placeholder data.
+
 ---
 
 ## Table of Contents
@@ -39,14 +41,22 @@ Slotwise is an information system that models the campus layout, validates every
 
 ## Key Features
 
-**Core (MVP)**
-- **Venue management:** buildings, rooms, capacity, type, and equipment
-- **Session scheduling:** create, edit, and cancel sessions
+**Core (MVP), working in the prototype**
+- **Venue management:** add, edit, and delete rooms with their capacity, type, and equipment
+- **Session scheduling:** create, edit, and cancel sessions, including weekly repeats and lectures shared by several cohorts
 - **Clash detection:** same room, same lecturer, same student cohort
 - **Travel-time validation:** warns when cross-phase back-to-back sessions leave too little gap
-- **Capacity matching:** prevents allocating a room smaller than the class
-- **Change notifications:** alerts affected students and lecturers when a session changes
-- **Room finder:** see which rooms are free right now
+- **Capacity matching:** prevents allocating a room smaller than the class, counting every cohort in a shared lecture
+- **Change notifications:** shows each student cohort and lecturer only the changes that affect them
+- **Personal timetables:** students see their cohort's timetable and lecturers see their own
+- **Room finder:** see which rooms are free at any date and time
+
+**Not built yet**
+- Backend, database, and real logins
+- Sending notifications by email or SMS
+- Adding or editing buildings, and modelling floors
+- The Facilities/Security view
+- Lecturer venue-change requests
 
 **Stretch goals**
 - Auto-generated timetables from constraints
@@ -67,7 +77,7 @@ Phase → Building → Floor → Room
 | Phase 1 | Central Building |
 | Phase 2 | MSB, STMB, Oval, Forge |
 
-The cross-phase **travel buffer** is configurable (default: `[X] minutes`, to be validated with measured walking times; see `docs/research/`).
+The cross-phase **travel buffer** is `TRAVEL_BUFFER_MIN` in [`frontend/src/lib/clash.ts`](frontend/src/lib/clash.ts). It is currently 15 minutes, a placeholder until it is validated with measured walking times.
 
 ## Users
 
@@ -80,67 +90,73 @@ The cross-phase **travel buffer** is configurable (default: `[X] minutes`, to be
 
 ## Tech Stack
 
-> _TBD: fill in once the team decides._
-
 | Layer | Choice |
 |-------|--------|
-| Frontend | `[e.g. React / plain HTML+JS]` |
-| Backend | `[e.g. Python (Flask/FastAPI) / Node.js (Express)]` |
-| Database | `[e.g. PostgreSQL / MySQL / SQLite]` |
-| Notifications | `[e.g. Email via SMTP / SMS API]` |
-| Testing | `[e.g. pytest / Jest, Postman]` |
+| Frontend | React, TypeScript, Vite |
+| UI | shadcn/ui, Tailwind CSS |
+| Routing | React Router |
+| Data storage | Browser `localStorage` (no backend yet) |
+| Notifications | Simulated inside the app |
+| Testing | Vitest |
 
 ## Getting Started
 
-> _Update these steps once the backend and frontend exist._
-
 ### Prerequisites
 - Git
-- `[Language runtime and version]`
-- `[Database]`
+- Node.js 22.12 or newer
 
 ### Setup
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<owner-username>/slotwise.git
-cd slotwise
+git clone https://github.com/keithh-kim/campus-timetable-system.git
+cd campus-timetable-system/frontend
 
-# 2. Switch to the develop branch
-git checkout develop
+# 2. Install dependencies
+npm install
 
-# 3. Configure environment variables
-cp .env.example .env
-# then edit .env with your local settings
-
-# 4. Install dependencies
-# [add commands here]
-
-# 5. Run the app
-# [add commands here]
+# 3. Run the app, then open the address it prints
+npm run dev
 ```
+
+### Trying it out
+
+- Use the role menu in the top bar to switch between Timetabling Officer, Lecturer, and Student. Lecturers and students also pick who they are viewing as.
+- On **Schedule Session**, the **Load demo** buttons fill the form with a room clash, a travel warning, a shared lecture, and an all-clear example.
+- **Reset demo data**, under the timetable, restores the original sessions and rooms.
 
 ### Running tests
 
 ```bash
-# [add test command here]
+cd frontend
+npm test        # scheduling, notification, and venue rules
+npm run lint
+npm run build
 ```
 
 ## Project Structure
 
 ```
-slotwise/
+campus-timetable-system/
+├── frontend/
+│   └── src/
+│       ├── lib/          # Scheduling rules and data, with no React (tests sit beside them)
+│       ├── store/        # Shared app state, saved to localStorage
+│       ├── pages/        # One file per screen
+│       └── components/   # Screen parts; ui/ holds the shadcn components
+└── README.md
+```
+
+Planned as the project grows:
+
+```
+├── backend/
 ├── docs/
 │   ├── requirements/   # Functional, non-functional, and domain requirements
 │   ├── diagrams/       # Use case, sequence, and interaction diagrams
 │   ├── research/       # Interview notes, survey results, walking times
 │   └── report/         # Report drafts
-├── src/
-│   ├── backend/
-│   └── frontend/
-├── tests/
-├── .github/            # Issue and PR templates
-└── README.md
+└── .github/            # Issue and PR templates
 ```
 
 ## Methodology and Roadmap
@@ -185,9 +201,11 @@ Example: `fix: treat back-to-back sessions as non-overlapping`
 
 ## Documentation
 
-- Requirements: [`docs/requirements/`](docs/requirements/)
-- Diagrams: [`docs/diagrams/`](docs/diagrams/)
-- Research and findings: [`docs/research/`](docs/research/)
+Not in the repository yet. Planned locations:
+
+- Requirements: `docs/requirements/`
+- Diagrams: `docs/diagrams/`
+- Research and findings: `docs/research/`
 
 ## CASE Tools Used
 
