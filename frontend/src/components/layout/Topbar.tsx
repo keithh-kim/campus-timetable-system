@@ -9,12 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Role } from "../../lib/types"
+import { COHORTS, LECTURERS } from "@/lib/mockData"
 import { useSlotwise } from "@/store/SlotwiseContext"
 
 const titles: Record<string, string> = {
   "/timetable": "Timetable",
   "/schedule": "Schedule Session",
   "/rooms": "Room Finder",
+  "/venues": "Venues",
   "/notifications": "Notifications",
 }
 
@@ -26,7 +28,7 @@ const roleLabels: Record<Role, string> = {
 
 export default function Topbar() {
   const { pathname } = useLocation()
-  const { role, setRole, unreadCount } = useSlotwise()
+  const { role, setRole, viewer, setViewer, unreadCount } = useSlotwise()
 
   // "/schedule/s-001" should still read "Schedule Session"
   const title =
@@ -60,6 +62,36 @@ export default function Topbar() {
             ))}
           </SelectContent>
         </Select>
+
+        {role === "lecturer" && (
+          <Select value={viewer.lecturerId} onValueChange={(v) => setViewer({ lecturerId: v })}>
+            <SelectTrigger className="w-44" aria-label="Viewing as lecturer">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LECTURERS.map((l) => (
+                <SelectItem key={l.id} value={l.id}>
+                  {l.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {role === "student" && (
+          <Select value={viewer.cohortId} onValueChange={(v) => setViewer({ cohortId: v })}>
+            <SelectTrigger className="w-44" aria-label="Viewing as cohort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COHORTS.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </header>
   )

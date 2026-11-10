@@ -1,6 +1,10 @@
 // Times are "HH:mm" strings, dates are "YYYY-MM-DD" strings.
 // All conversion happens here so the rest of the app never does date maths.
 
+/** The teaching day. The timetable grid shows these hours and sessions must fit inside them. */
+export const DAY_START_HOUR = 8
+export const DAY_END_HOUR = 18
+
 export function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number)
   return h * 60 + m
@@ -48,6 +52,20 @@ export function addDays(date: string, n: number): string {
   const d = parseDate(date)
   d.setDate(d.getDate() + n)
   return toDateString(d)
+}
+
+/** Whole days from one date to another. Rounded so a clock change can't shift the answer. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / 86_400_000)
+}
+
+/** e.g. "Mon 2 Nov" */
+export function formatDate(date: string): string {
+  return parseDate(date).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })
 }
 
 /** Monday = 0 ... Sunday = 6 */

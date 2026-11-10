@@ -1,38 +1,14 @@
-import { Bell, CalendarClock, CalendarPlus, CalendarX } from "lucide-react"
+import { Bell, CalendarClock, CalendarCog, CalendarPlus, CalendarX } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { AppNotification } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useSlotwise } from "@/store/SlotwiseContext"
-
-type Kind = "added" | "cancelled" | "moved" | "other"
 
 const icons = {
   added: CalendarPlus,
   cancelled: CalendarX,
   moved: CalendarClock,
-  other: Bell,
+  changed: CalendarCog,
 } as const
-
-// The store writes plain-text messages, so we read the prefix to decide how to show them.
-function describe(n: AppNotification): { kind: Kind; title: string; lines: string[] } {
-  const m = n.message
-  if (m.startsWith("New session: ")) {
-    return { kind: "added", title: "New session scheduled", lines: [m.replace("New session: ", "")] }
-  }
-  if (m.startsWith("Cancelled: ")) {
-    return { kind: "cancelled", title: "Session cancelled", lines: [m.replace("Cancelled: ", "")] }
-  }
-  const [head, rest] = m.split(" moved: ")
-  if (rest) {
-    const [from, to] = rest.split(" → ")
-    return {
-      kind: "moved",
-      title: `${head} moved`,
-      lines: to ? [`From: ${from}`, `To: ${to}`] : [rest],
-    }
-  }
-  return { kind: "other", title: m, lines: [] }
-}
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
@@ -45,7 +21,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function Notifications() {
-  const { notifications, unreadCount, markAllRead } = useSlotwise()
+  const { notifications, isUnread, unreadCount, markAllRead } = useSlotwise()
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -75,19 +51,19 @@ export default function Notifications() {
       ) : (
         <ul className="divide-y overflow-hidden rounded-lg border">
           {notifications.map((n) => {
-            const { kind, title, lines } = describe(n)
-            const Icon = icons[kind]
+            const Icon = icons[n.kind]
+            const unread = isUnread(n)
             return (
-              <li key={n.id} className={cn("flex gap-3 p-4", !n.read && "bg-muted/50")}>
+              <li key={n.id} className={cn("flex gap-3 p-4", unread && "bg-muted/50")}>
                 <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border bg-background">
                   <Icon className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium">{title}</p>
-                    {!n.read && <span className="size-2 shrink-0 rounded-full bg-primary" />}
+                    <p className="truncate text-sm font-medium">{n.title}</p>
+                    {unread && <span className="size-2 shrink-0 rounded-full bg-primary" />}
                   </div>
-                  {lines.map((line) => (
+                  {n.lines.map((line) => (
                     <p key={line} className="text-sm text-muted-foreground">
                       {line}
                     </p>

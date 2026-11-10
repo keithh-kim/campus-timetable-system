@@ -1,17 +1,16 @@
 import { CircleCheck, CircleX, TriangleAlert } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { CheckResult } from "@/lib/types"
-import { BUILDINGS, PHASES, ROOMS } from "@/lib/mockData"
+import type { CheckResult, Room } from "@/lib/types"
+import { BUILDINGS, PHASES } from "@/lib/mockData"
 
 interface Props {
   result: CheckResult
   onPickRoom: (roomId: string) => void
 }
 
-function phaseNameOfRoom(roomId: string) {
-  const room = ROOMS.find((r) => r.id === roomId)
-  const building = BUILDINGS.find((b) => b.id === room?.buildingId)
+function phaseNameOfRoom(room: Room) {
+  const building = BUILDINGS.find((b) => b.id === room.buildingId)
   return PHASES.find((p) => p.id === building?.phaseId)?.name
 }
 
@@ -103,7 +102,7 @@ export default function CheckResults({ result, onPickRoom }: Props) {
                 >
                   <span className="font-medium">{room.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {room.capacity} seats · {phaseNameOfRoom(room.id)}
+                    {room.capacity} seats · {phaseNameOfRoom(room)}
                   </span>
                 </button>
               ))}

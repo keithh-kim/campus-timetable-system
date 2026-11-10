@@ -6,8 +6,10 @@ import type {
   Room,
   Session,
   SessionDraft,
+  SessionFields,
 } from "./types"
-import { addDays, startOfWeek, today, weekdayIndex } from "./time"
+import { occurrenceDates } from "./series"
+import { addDays, daysBetween, startOfWeek, today, weekdayIndex } from "./time"
 
 // ⚠️ PLACEHOLDERS: the buildings are real, but room names, capacities,
 // lecturers and cohorts are made up. Replace them with the real data
@@ -26,6 +28,8 @@ export const BUILDINGS: Building[] = [
   { id: "forge", name: "Forge", phaseId: "phase2" },
 ]
 
+// The starting rooms. Officers can change them on the Venues page, so read
+// rooms from the store everywhere else.
 export const ROOMS: Room[] = [
   { id: "central-101", name: "Central 101", buildingId: "central", capacity: 120, type: "lecture", equipment: ["Projector"] },
   { id: "central-204", name: "Central 204", buildingId: "central", capacity: 60, type: "lecture", equipment: ["Projector"] },
@@ -58,38 +62,60 @@ export const COHORTS: Cohort[] = [
 // Built relative to the current week so the demo always looks "live".
 // On weekends we show next week, since this week is already over.
 
+const SEED_WEEKS = 12
+
 export function demoWeekStart(): string {
   const monday = startOfWeek(today())
   return weekdayIndex(today()) >= 5 ? addDays(monday, 7) : monday
+}
+
+/** Saved demo data keeps its place relative to the current week instead of drifting into the past. */
+export function rollSessions(sessions: Session[], fromWeek: string, toWeek: string): Session[] {
+  const days = daysBetween(fromWeek, toWeek)
+  return days === 0 ? sessions : sessions.map((s) => ({ ...s, date: addDays(s.date, days) }))
 }
 
 export function makeSeedSessions(): Session[] {
   const mon = demoWeekStart()
   const day = (n: number) => addDays(mon, n) // 0 = Mon ... 4 = Fri
 
-  return [
-    { id: "s-001", course: "Software Engineering", lecturerId: "l-otieno", cohortId: "c-bbit2", roomId: "central-204", date: day(0), start: "08:00", end: "10:00" },
-    { id: "s-002", course: "Database Systems", lecturerId: "l-wanjiru", cohortId: "c-bbit3", roomId: "msb-101", date: day(0), start: "10:00", end: "12:00" },
-    { id: "s-003", course: "Web Development", lecturerId: "l-otieno", cohortId: "c-info3", roomId: "forge-1", date: day(1), start: "09:00", end: "11:00" },
-    { id: "s-004", course: "Calculus I", lecturerId: "l-kamau", cohortId: "c-info1", roomId: "central-101", date: day(1), start: "11:00", end: "13:00" },
-    { id: "s-005", course: "Computer Networks", lecturerId: "l-achieng", cohortId: "c-bbit3", roomId: "stmb-204", date: day(2), start: "14:00", end: "16:00" },
-    { id: "s-006", course: "Algorithms", lecturerId: "l-wanjiru", cohortId: "c-info3", roomId: "oval-2", date: day(3), start: "10:00", end: "12:00" },
-    { id: "s-007", course: "Operating Systems", lecturerId: "l-achieng", cohortId: "c-bbit2", roomId: "forge-1", date: day(4), start: "08:00", end: "10:00" },
-    { id: "s-008", course: "Statistics", lecturerId: "l-kamau", cohortId: "c-bbit3", roomId: "central-101", date: day(4), start: "10:00", end: "12:00" },
+  const weekly: (SessionFields & { seriesId: string })[] = [
+    { seriesId: "s-001", course: "Software Engineering", lecturerId: "l-otieno", cohortIds: ["c-bbit2"], roomId: "central-204", date: day(0), start: "08:00", end: "10:00" },
+    { seriesId: "s-002", course: "Database Systems", lecturerId: "l-wanjiru", cohortIds: ["c-bbit3"], roomId: "msb-101", date: day(0), start: "10:00", end: "12:00" },
+    { seriesId: "s-003", course: "Web Development", lecturerId: "l-otieno", cohortIds: ["c-info3"], roomId: "forge-1", date: day(1), start: "09:00", end: "11:00" },
+    { seriesId: "s-004", course: "Calculus I", lecturerId: "l-kamau", cohortIds: ["c-info1"], roomId: "central-101", date: day(1), start: "11:00", end: "13:00" },
+    { seriesId: "s-005", course: "Computer Networks", lecturerId: "l-achieng", cohortIds: ["c-bbit3"], roomId: "stmb-204", date: day(2), start: "14:00", end: "16:00" },
+    { seriesId: "s-006", course: "Algorithms", lecturerId: "l-wanjiru", cohortIds: ["c-info3"], roomId: "oval-2", date: day(3), start: "10:00", end: "12:00" },
+    { seriesId: "s-007", course: "Operating Systems", lecturerId: "l-achieng", cohortIds: ["c-bbit2"], roomId: "forge-1", date: day(4), start: "08:00", end: "10:00" },
+    // A shared lecture: both cohorts count towards the room's capacity
+    { seriesId: "s-008", course: "Statistics", lecturerId: "l-kamau", cohortIds: ["c-bbit3", "c-info1"], roomId: "central-101", date: day(4), start: "10:00", end: "12:00" },
   ]
+
+  return weekly.flatMap((s) =>
+    occurrenceDates(s.date, SEED_WEEKS).map((date, week) => ({
+      ...s,
+      id: `${s.seriesId}-w${week + 1}`,
+      date,
+    }))
+  )
 }
 
 // ---------- Demo drafts ----------
 // Handy for presenting: a "Load demo" button can fill the form with these.
 
-export function makeDemoDrafts(): { roomClash: SessionDraft; travelWarning: SessionDraft; allClear: SessionDraft } {
+export function makeDemoDrafts(): {
+  roomClash: SessionDraft
+  travelWarning: SessionDraft
+  sharedLecture: SessionDraft
+  allClear: SessionDraft
+} {
   const mon = demoWeekStart()
   return {
     // Same room (MSB 101) as Database Systems on Monday 10:00-12:00 → ROOM_CLASH error
     roomClash: {
       course: "Demo: Room Clash",
       lecturerId: "l-achieng",
-      cohortId: "c-info3",
+      cohortIds: ["c-info3"],
       roomId: "msb-101",
       date: mon,
       start: "10:00",
@@ -100,17 +126,27 @@ export function makeDemoDrafts(): { roomClash: SessionDraft; travelWarning: Sess
     travelWarning: {
       course: "Demo: Travel Warning",
       lecturerId: "l-otieno",
-      cohortId: "c-info3",
+      cohortIds: ["c-info3"],
       roomId: "stmb-301",
       date: mon,
       start: "10:05",
+      end: "12:00",
+    },
+    // Two cohorts together: 55 + 38 = 93 students, which fits Oval 2 (100 seats)
+    sharedLecture: {
+      course: "Demo: Shared Lecture",
+      lecturerId: "l-kamau",
+      cohortIds: ["c-bbit2", "c-info3"],
+      roomId: "oval-2",
+      date: addDays(mon, 2),
+      start: "10:00",
       end: "12:00",
     },
     // Nothing wrong: everything green
     allClear: {
       course: "Demo: All Clear",
       lecturerId: "l-kamau",
-      cohortId: "c-bbit3",
+      cohortIds: ["c-bbit3"],
       roomId: "oval-2",
       date: mon,
       start: "14:00",
